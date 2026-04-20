@@ -6,7 +6,11 @@ body {
     flex-direction: column;
     min-height: 100vh;
 }
-
+h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #164ea2;
+}
 /* Hero Section Enhancements */
 .hero-section {
     background: linear-gradient(135deg, #0d6efd 0%, #084298 100%);
