@@ -5,7 +5,7 @@
 $host = 'localhost';
 $db_name = 'qna_system';
 $username = 'root'; // Default XAMPP username
-$password = '';     // Leave empty unless you specifically set a MySQL root password earlier
+$password = '9889';     // Leave empty unless you specifically set a MySQL root password earlier
 
 // Set up the PDO connection
 try {
