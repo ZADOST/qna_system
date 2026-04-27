@@ -1,77 +1,64 @@
 // frontend/js/app.js
 
-// Define the base path for your PHP API
+// Define the base path for the PHP API
 const API_BASE_URL = 'http://localhost/qna_system/backend/api/';
 
-// Wait for the HTML DOM to fully load before running scripts
+// Initialize the application once the DOM is fully loaded
 document.addEventListener('DOMContentLoaded', () => {
     
-    // ---------------------------------------------------------
-    // 1. Logic for index.html (Main Feed)
-    // ---------------------------------------------------------
+    // 1. Dashboard Logic (index.html)
     const questionsContainer = document.getElementById('questionsContainer');
     if (questionsContainer) {
         fetchQuestions();
     }
 
-    // ---------------------------------------------------------
-    // 2. Logic for ask.html (Submit Question Form)
-    // ---------------------------------------------------------
+    // 2. Submission Form Logic (ask.html)
     const askForm = document.getElementById('askForm');
     if (askForm) {
         askForm.addEventListener('submit', handleAskSubmit);
     }
-
-    // ---------------------------------------------------------
-    // 3. Logic for question.html (Single Thread & Answers)
-    // ---------------------------------------------------------
-    const questionDetailsCard = document.getElementById('questionDetailsCard');
-    if (questionDetailsCard) {
-        loadThread();
-        
-        const answerForm = document.getElementById('answerForm');
-        if (answerForm) {
-            answerForm.addEventListener('submit', handleAnswerSubmit);
-        }
-    }
 });
 
-
 /**
- * Fetches all questions from the API and renders them on index.html
+ * Fetches all questions from the database and renders the UI cards
  */
 function fetchQuestions() {
+    const container = document.getElementById('questionsContainer');
+    
     fetch(`${API_BASE_URL}get_questions.php`)
         .then(response => response.json())
         .then(data => {
-            const container = document.getElementById('questionsContainer');
-            container.innerHTML = ''; // Clear the loading spinner
+            container.innerHTML = ''; // Clear loading state
 
             if (data.message) {
-                // If the API returns a 404 message (no questions yet)
-                container.innerHTML = `<div class="col-12 text-center py-5"><p class="text-muted fs-5">${data.message}</p></div>`;
+                container.innerHTML = `<div class="alert alert-info text-center w-100">${data.message}</div>`;
                 return;
             }
 
-            // Loop through the records and create HTML cards
-            data.records.forEach(q => {
-                // Format the timestamp
-                const dateObj = new Date(q.created_at);
+            // Loop through each database record and construct the HTML card
+            data.records.forEach(item => {
+                const dateObj = new Date(item.created_at);
                 const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+                // We inject the item.id directly into the onclick function of the Delete button
                 const cardHTML = `
-                    <div class="col-md-6 mb-4">
-                        <div class="card question-card h-100 p-3">
-                            <div class="card-body d-flex flex-column">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <span class="author-badge">👤 ${q.author}</span>
-                                    <small class="text-muted">${formattedDate}</small>
-                                </div>
-                                <h5 class="card-title mb-2">${q.title}</h5>
-                                <p class="card-text text-muted text-truncate-multiline mb-4">${q.body}</p>
-                                <div class="mt-auto">
-                                    <a href="question.html?id=${q.id}" class="btn btn-outline-primary btn-sm fw-bold px-3 rounded-pill">View Thread →</a>
-                                </div>
+                    <div class="card mb-4 shadow-sm border-0 hover-lift">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary author-badge px-3 py-2">
+                                    <i class="bi bi-person-circle me-1"></i> ${item.author_name || 'Student'}
+                                </span>
+                                <small class="text-muted fw-bold">${formattedDate}</small>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-3">${item.title}</h4>
+                            <p class="text-muted text-truncate-multiline" style="font-size: 1.05rem;">${item.body || item.details}</p>
+                            
+                            <hr class="text-muted my-3">
+                            
+                            <div class="d-flex justify-content-end">
+                                <button onclick="deleteQuestion(${item.id})" class="btn btn-sm btn-outline-danger fw-bold px-3">
+                                    Delete Question
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -80,29 +67,59 @@ function fetchQuestions() {
             });
         })
         .catch(error => {
-            console.error('Error fetching questions:', error);
-            document.getElementById('questionsContainer').innerHTML = `<div class="alert alert-danger">Failed to load questions from the server.</div>`;
+            console.error('API Error:', error);
+            container.innerHTML = `<div class="alert alert-danger text-center">Failed to connect to the Q&A database.</div>`;
         });
 }
 
+/**
+ * Handles the deletion of a specific question using its unique database ID
+ */
+function deleteQuestion(questionId) {
+    // 1. Trigger browser confirmation to prevent accidental clicks
+    const isConfirmed = confirm("Are you sure you want to permanently delete this question from the Student Talks platform?");
+    
+    if (!isConfirmed) {
+        return; // Exit the function if the user clicks 'Cancel'
+    }
+
+    // 2. Send the POST request to the deletion engine
+    fetch(`${API_BASE_URL}delete_question.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: questionId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // 3. Immediately refresh the feed to remove the card visually
+            fetchQuestions();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Deletion Error:', error);
+        alert('A network error occurred while trying to delete the question.');
+    });
+}
 
 /**
  * Handles the submission of a new question on ask.html
  */
 function handleAskSubmit(e) {
-    e.preventDefault(); // Prevent standard page reload
+    e.preventDefault(); 
 
     const btn = document.getElementById('submitBtn');
     const msgBox = document.getElementById('formMessage');
     
-    // Create payload from input values
+    // Construct the data payload from the HTML inputs
     const payload = {
-        author: document.getElementById('authorInput').value.trim(),
+        author_name: document.getElementById('nameInput') ? document.getElementById('nameInput').value.trim() : 'Anonymous',
         title: document.getElementById('titleInput').value.trim(),
-        body: document.getElementById('bodyInput').value.trim()
+        details: document.getElementById('bodyInput') ? document.getElementById('bodyInput').value.trim() : ''
     };
 
-    // UI loading state
     btn.disabled = true;
     btn.innerHTML = 'Publishing...';
 
@@ -113,159 +130,22 @@ function handleAskSubmit(e) {
     })
     .then(response => response.json())
     .then(data => {
-        msgBox.classList.remove('d-none', 'alert-danger');
-        msgBox.classList.add('alert-success');
-        msgBox.innerHTML = '<strong>Success!</strong> ' + data.message + ' Redirecting...';
-        
-        // Clear form
-        document.getElementById('askForm').reset();
-        
-        // Redirect back to home after 2 seconds
-        setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+        if(data.status === 'success') {
+            msgBox.className = 'alert alert-success mt-3';
+            msgBox.innerHTML = '<strong>Success!</strong> Question published. Redirecting...';
+            document.getElementById('askForm').reset();
+            setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+        } else {
+            msgBox.className = 'alert alert-danger mt-3';
+            msgBox.innerHTML = '<strong>Error!</strong> ' + data.message;
+            btn.disabled = false;
+            btn.innerHTML = 'Publish Question';
+        }
     })
     .catch(error => {
-        msgBox.classList.remove('d-none', 'alert-success');
-        msgBox.classList.add('alert-danger');
-        msgBox.innerHTML = '<strong>Error!</strong> Could not connect to the server.';
+        msgBox.className = 'alert alert-danger mt-3';
+        msgBox.innerHTML = '<strong>Critical Error!</strong> Could not connect to the server.';
         btn.disabled = false;
         btn.innerHTML = 'Publish Question';
-    });
-}
-
-
-/**
- * Loads a specific question and its answers on question.html
- */
-function loadThread() {
-    // Get the ID from the URL parameters (e.g., ?id=5)
-    const urlParams = new URLSearchParams(window.location.search);
-    const questionId = urlParams.get('id');
-
-    if (!questionId) {
-        document.getElementById('questionDetailsCard').innerHTML = '<div class="alert alert-danger m-4">No question ID provided.</div>';
-        return;
-    }
-
-    // Fetch all questions to find the specific one (Simple approach for small DB)
-    fetch(`${API_BASE_URL}get_questions.php`)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('qLoadingSpinner').classList.add('d-none');
-            
-            if (data.records) {
-                // Find the question matching our URL ID
-                const q = data.records.find(item => item.id == questionId);
-                
-                if (q) {
-                    const dateObj = new Date(q.created_at);
-                    
-                    // Inject data into the DOM
-                    document.getElementById('qTitle').textContent = q.title;
-                    document.getElementById('qAuthor').innerHTML = `👤 ${q.author}`;
-                    document.getElementById('qDate').textContent = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    document.getElementById('qBody').textContent = q.body;
-                    
-                    document.getElementById('qContent').classList.remove('d-none');
-                    
-                    // Now load the answers for this specific question
-                    loadAnswers(questionId);
-                } else {
-                    document.getElementById('questionDetailsCard').innerHTML = '<div class="alert alert-warning m-4">Question not found.</div>';
-                }
-            }
-        });
-}
-
-
-/**
- * Fetches answers for a specific question ID
- */
-function loadAnswers(questionId) {
-    const container = document.getElementById('answersContainer');
-    const countBadge = document.getElementById('answerCount');
-    
-    // We will build get_answers.php to accept a GET parameter
-    fetch(`${API_BASE_URL}get_answers.php?question_id=${questionId}`)
-        .then(response => response.json())
-        .then(data => {
-            container.innerHTML = '';
-            
-            if (data.message) {
-                container.innerHTML = '<p class="text-muted fst-italic">No answers yet. Be the first to contribute!</p>';
-                countBadge.textContent = '0';
-                return;
-            }
-
-            countBadge.textContent = data.records.length;
-
-            data.records.forEach(ans => {
-                const dateObj = new Date(ans.created_at);
-                const html = `
-                    <div class="card mb-3 border-0 shadow-sm rounded-3">
-                        <div class="card-body p-4">
-                            <div class="d-flex justify-content-between mb-2">
-                                <span class="fw-bold text-primary">${ans.author}</span>
-                                <small class="text-muted">${dateObj.toLocaleDateString()}</small>
-                            </div>
-                            <p class="mb-0 text-dark">${ans.answer_text}</p>
-                        </div>
-                    </div>
-                `;
-                container.innerHTML += html;
-            });
-        })
-        .catch(error => {
-            container.innerHTML = '<div class="alert alert-danger">Could not load answers.</div>';
-        });
-}
-
-
-/**
- * Handles submitting a new answer on question.html
- */
-function handleAnswerSubmit(e) {
-    e.preventDefault();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const questionId = urlParams.get('id');
-    const msgBox = document.getElementById('answerFormMessage');
-    const btn = document.getElementById('submitAnsBtn');
-
-    const payload = {
-        question_id: questionId,
-        author: document.getElementById('ansAuthorInput').value.trim(),
-        answer_text: document.getElementById('ansBodyInput').value.trim()
-    };
-
-    btn.disabled = true;
-    btn.innerHTML = 'Posting...';
-
-    // We will build add_answer.php next
-    fetch(`${API_BASE_URL}add_answer.php`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    })
-    .then(response => response.json())
-    .then(data => {
-        msgBox.classList.remove('d-none', 'alert-danger');
-        msgBox.classList.add('alert-success');
-        msgBox.innerHTML = 'Answer posted!';
-        
-        document.getElementById('answerForm').reset();
-        
-        // Reload answers to show the new one instantly
-        loadAnswers(questionId);
-        
-        setTimeout(() => { msgBox.classList.add('d-none'); }, 3000);
-        btn.disabled = false;
-        btn.innerHTML = 'Post Answer';
-    })
-    .catch(error => {
-        msgBox.classList.remove('d-none', 'alert-success');
-        msgBox.classList.add('alert-danger');
-        msgBox.innerHTML = 'Failed to post answer.';
-        btn.disabled = false;
-        btn.innerHTML = 'Post Answer';
     });
 }
