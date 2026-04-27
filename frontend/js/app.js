@@ -40,18 +40,21 @@ function fetchQuestions() {
                 const dateObj = new Date(item.created_at);
                 const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-                // We inject the item.id directly into the onclick function of the Delete button
+                // Ensure data displays correctly regardless of database column names
+                const displayAuthor = item.author || item.author_name || 'Student';
+                const displayBody = item.body || item.details || '';
+
                 const cardHTML = `
                     <div class="card mb-4 shadow-sm border-0 hover-lift">
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span class="badge bg-primary author-badge px-3 py-2">
-                                    <i class="bi bi-person-circle me-1"></i> ${item.author_name || 'Student'}
+                                    <i class="bi bi-person-circle me-1"></i> ${displayAuthor}
                                 </span>
                                 <small class="text-muted fw-bold">${formattedDate}</small>
                             </div>
                             <h4 class="fw-bold text-dark mb-3">${item.title}</h4>
-                            <p class="text-muted text-truncate-multiline" style="font-size: 1.05rem;">${item.body || item.details}</p>
+                            <p class="text-muted text-truncate-multiline" style="font-size: 1.05rem;">${displayBody}</p>
                             
                             <hr class="text-muted my-3">
                             
@@ -76,14 +79,12 @@ function fetchQuestions() {
  * Handles the deletion of a specific question using its unique database ID
  */
 function deleteQuestion(questionId) {
-    // 1. Trigger browser confirmation to prevent accidental clicks
     const isConfirmed = confirm("Are you sure you want to permanently delete this question from the Student Talks platform?");
     
     if (!isConfirmed) {
-        return; // Exit the function if the user clicks 'Cancel'
+        return; 
     }
 
-    // 2. Send the POST request to the deletion engine
     fetch(`${API_BASE_URL}delete_question.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,7 +93,6 @@ function deleteQuestion(questionId) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            // 3. Immediately refresh the feed to remove the card visually
             fetchQuestions();
         } else {
             alert('Error: ' + data.message);
@@ -113,11 +113,11 @@ function handleAskSubmit(e) {
     const btn = document.getElementById('submitBtn');
     const msgBox = document.getElementById('formMessage');
     
-    // Construct the data payload from the HTML inputs
+    // FIXED PAYLOAD: The keys now perfectly match what your PHP expects!
     const payload = {
-        author_name: document.getElementById('nameInput') ? document.getElementById('nameInput').value.trim() : 'Anonymous',
+        author: document.getElementById('nameInput') ? document.getElementById('nameInput').value.trim() : 'Anonymous',
         title: document.getElementById('titleInput').value.trim(),
-        details: document.getElementById('bodyInput') ? document.getElementById('bodyInput').value.trim() : ''
+        body: document.getElementById('bodyInput') ? document.getElementById('bodyInput').value.trim() : ''
     };
 
     btn.disabled = true;
